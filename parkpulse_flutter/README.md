@@ -1,5 +1,9 @@
 # ParkPulse: Crowdsourced Street Parking & Sign Reader
 
+**Founder & Lead Architect:** Mohit Singh Karayat  
+**Contact:** mskarayat042@gmail.com  
+**Copyright:** © 2026 Mohit Singh Karayat. All rights reserved.
+
 ParkPulse is a real-time, crowdsourced mobile parking application. Drivers view open street parking spots reported by other drivers in real time, read complex street parking rules in plain English, scan physical parking signs with camera AI, receive automated push notifications when a spot opens near their destination, and earn points for keeping their community moving.
 
 ---
@@ -123,7 +127,9 @@ Connect a physical phone or launch an Android/iOS emulator.
 
 ## Known Limits (Stated Honestly)
 
-- **No street-segment colour lines**: Rendering colored curb lines (red, green, yellow, blue curb zones) requires municipal GIS open data shapefiles, which vary drastically by municipality.
+- **Line snapping depends on OpenStreetMap road geometry and Overpass API availability**: If Overpass is unreachable or times out, realistic fallback lines are drawn based on reporting coordinates.
+- **Side-of-street accuracy**: Lines snap to the road center line, not the curb edge, since OSM ways do not distinguish curbs.
+- **Zoom threshold**: Street lines are only queried and drawn at zoom 15 and above to preserve performance and prevent map clutter. At zoom >= 16, centered text badges ('FREE', 'PAID', 'NO PARKING') appear.
 - **No photo upload on reports**: Spot reports store geolocations, notes, and city names rather than image blobs to optimize battery, data usage, and upload latency.
 - **No spam rate limiting**: For demonstration purposes, users can report multiple spots without CAPTCHAs or cooldown limits.
 - **Map tile limits**: The default configuration uses OpenStreetMap public tile servers (`tile.openstreetmap.org`) and Nominatim geocoding under their Fair Use Policy. For high-volume production, configure a dedicated tile CDN or insert a Mapbox access token in `kMapboxToken`.
@@ -131,10 +137,21 @@ Connect a physical phone or launch an Android/iOS emulator.
 
 ---
 
+## Bulk Import City Parking Regulations
+
+ParkPulse includes a bulk import script (`tools/import_city_parking.py`) to load municipal parking GIS datasets:
+```bash
+python tools/import_city_parking.py regulations.geojson serviceAccount.json
+# Or test with dry-run:
+python tools/import_city_parking.py regulations.geojson --dry-run
+```
+Segments are batched in groups of 400 with automatic coordinate conversion `[lng, lat]` -> `{lat, lng}` and point clamping (2 to 20 vertices) adhering to Firestore security rules.
+
+---
+
 ## What Is Not Included
 
 - Trained custom YOLO weights (the repository provides the complete dataset specification `data.yaml` and one-line training pipeline `train.py`).
-- Municipal street-segment polygon shapefiles.
 - Cloud Storage photo bucket integration on spot reports.
 - Hardcoded user secrets or API keys.
 

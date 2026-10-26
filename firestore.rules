@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    match /spots/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['lat','lng','uid','createdAt','taken','note','city'])
+        && request.resource.data.createdAt == request.time;
+      allow update: if request.auth != null
+        && resource.data.taken == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['taken','takenBy'])
+        && request.resource.data.takenBy == request.auth.uid;
+    }
+
+    match /garages/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['lat','lng','uid','city','createdAt','name','price'])
+        && request.resource.data.name.size() < 80;
+    }
+
+    match /rules/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['lat','lng','uid','type','text','createdAt'])
+        && request.resource.data.text.size() < 200;
+    }
+
+    match /users/{u} {
+      allow read: if request.auth != null && request.auth.uid == u;
+    }
+
+    match /alerts/{u} {
+      allow read, write: if request.auth != null && request.auth.uid == u
+        && request.resource.data.keys().hasOnly(['token','alertOn','destLat','destLng']);
+    }
+
+    match /segments/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid','type','text','lat','lng','pts','createdAt'])
+        && request.resource.data.type in ['free','paid','no']
+        && request.resource.data.text.size() < 200
+        && request.resource.data.pts.size() >= 2
+        && request.resource.data.pts.size() <= 20;
+    }
+  }
+}

@@ -1,5 +1,5 @@
-import { Spot, Garage, Rule, UserAlert, UserProfile, RuleType } from '../types';
-import { haversineDistanceMeters } from '../utils/geo';
+import { Spot, Garage, Rule, Segment, UserAlert, UserProfile, RuleType } from '../types';
+import { haversineDistanceMeters, snapToStreetSegment } from '../utils/geo';
 
 // Seed coordinates around Murthal (29.03, 77.07)
 const INITIAL_SPOTS: Spot[] = [
@@ -88,6 +88,52 @@ const INITIAL_RULES: Rule[] = [
   },
 ];
 
+// Pre-seeded colored street segments matching road geometry around Murthal
+const INITIAL_SEGMENTS: Segment[] = [
+  {
+    id: 'seg-free-1',
+    uid: 'system',
+    type: 'free',
+    text: 'Free roadside parking for dining customers (2 hr limit)',
+    lat: 29.0320,
+    lng: 77.0695,
+    pts: [
+      [29.0308, 77.0691],
+      [29.0320, 77.0695],
+      [29.0332, 77.0699],
+    ],
+    createdAt: Date.now() - 48 * 60 * 60 * 1000,
+  },
+  {
+    id: 'seg-paid-1',
+    uid: 'system',
+    type: 'paid',
+    text: '2 HR, 8AM-6PM, Mon-Fri. Municipal meter $2/hr',
+    lat: 29.0290,
+    lng: 77.0724,
+    pts: [
+      [29.0278, 77.0716],
+      [29.0290, 77.0724],
+      [29.0302, 77.0732],
+    ],
+    createdAt: Date.now() - 48 * 60 * 60 * 1000,
+  },
+  {
+    id: 'seg-no-1',
+    uid: 'system',
+    type: 'no',
+    text: 'NO STOPPING / TOW-AWAY ZONE 7AM-9AM MON-FRI',
+    lat: 29.0358,
+    lng: 77.0679,
+    pts: [
+      [29.0345, 77.0672],
+      [29.0358, 77.0679],
+      [29.0370, 77.0686],
+    ],
+    createdAt: Date.now() - 48 * 60 * 60 * 1000,
+  },
+];
+
 type Listener = () => void;
 type AlertListener = (message: string, alertData: { spot: Spot; distanceMeters: number }) => void;
 
@@ -95,6 +141,7 @@ class ParkingStore {
   private spots: Spot[] = [];
   private garages: Garage[] = [];
   private rules: Rule[] = [];
+  private segments: Segment[] = [];
   private users: Record<string, UserProfile> = {
     'phone-a': {
       uid: 'phone-a',
@@ -118,6 +165,7 @@ class ParkingStore {
     this.spots = [...INITIAL_SPOTS];
     this.garages = [...INITIAL_GARAGES];
     this.rules = [...INITIAL_RULES];
+    this.segments = [...INITIAL_SEGMENTS];
 
     // Try setting up BroadcastChannel for multi-tab sync
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -125,11 +173,12 @@ class ParkingStore {
         this.broadcastChannel = new BroadcastChannel('parkpulse_sync');
         this.broadcastChannel.onmessage = (event) => {
           if (event.data?.type === 'SYNC') {
-            this.spots = event.data.spots;
-            this.garages = event.data.garages;
-            this.rules = event.data.rules;
-            this.users = event.data.users;
-            this.alerts = event.data.alerts;
+            this.spots = event.data.spots || [];
+            this.garages = event.data.garages || [];
+            this.rules = event.data.rules || [];
+            this.segments = event.data.segments || [];
+            this.users = event.data.users || this.users;
+            this.alerts = event.data.alerts || this.alerts;
             this.notify();
           } else if (event.data?.type === 'ALERT_TRIGGERED') {
             this.alertListeners.forEach((l) =>
@@ -156,6 +205,7 @@ class ParkingStore {
           spots: this.spots,
           garages: this.garages,
           rules: this.rules,
+          segments: this.segments,
           users: this.users,
           alerts: this.alerts,
           ...extra,
@@ -195,6 +245,32 @@ class ParkingStore {
 
   getRules(): Rule[] {
     return this.rules;
+  }
+
+  getSegments(bounds?: { south: number; north: number; west: number; east: number }): Segment[] {
+    if (!bounds) return this.segments;
+    return this.segments.filter((seg) => {
+      // Check if any point of polyline is within visible bounding box
+      return seg.pts.some(
+        ([lat, lng]) =>
+          lat >= bounds.south &&
+          lat <= bounds.north &&
+          lng >= bounds.west &&
+          lng <= bounds.east
+      );
+    });
+  }
+
+  addSegment(seg: Omit<Segment, 'id' | 'createdAt'>): Segment {
+    const newSeg: Segment = {
+      ...seg,
+      id: `seg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      createdAt: Date.now(),
+    };
+    this.segments.unshift(newSeg);
+    this.notify();
+    this.broadcast();
+    return newSeg;
   }
 
   getUser(uid: string): UserProfile {
@@ -289,6 +365,19 @@ class ParkingStore {
     };
     this.rules.unshift(newRule);
     this.addPoints(rule.uid, 5);
+
+    // Asynchronously snap to nearest road vertex via Overpass API and create segment
+    snapToStreetSegment(rule.lat, rule.lng).then((pts) => {
+      this.addSegment({
+        lat: rule.lat,
+        lng: rule.lng,
+        pts,
+        type: rule.type,
+        text: rule.text,
+        uid: rule.uid,
+      });
+    });
+
     this.notify();
     this.broadcast();
     return newRule;
@@ -342,6 +431,7 @@ class ParkingStore {
     this.spots = [...INITIAL_SPOTS];
     this.garages = [...INITIAL_GARAGES];
     this.rules = [...INITIAL_RULES];
+    this.segments = [...INITIAL_SEGMENTS];
     this.users['phone-a'].points = 20;
     this.users['phone-b'].points = 15;
     this.alerts = {};

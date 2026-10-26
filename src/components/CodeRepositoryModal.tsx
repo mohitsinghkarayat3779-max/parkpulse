@@ -911,6 +911,17 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == u
         && request.resource.data.keys().hasOnly(['token','alertOn','destLat','destLng']);
     }
+
+    match /segments/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid','type','text','lat','lng','pts','createdAt'])
+        && request.resource.data.type in ['free','paid','no']
+        && request.resource.data.text.size() < 200
+        && request.resource.data.pts.size() >= 2
+        && request.resource.data.pts.size() <= 20;
+    }
   }
 }`;
 
@@ -1108,12 +1119,89 @@ const README_MD = `# ParkPulse Flutter & Firebase Prototype
 8. flutter run
 `;
 
+const IMPORT_SCRIPT_PY = `#!/usr/bin/env python3
+"""
+ParkPulse - City Parking Regulation Importer
+Founder & Author: Mohit Singh Karayat
+Bulk imports municipal curb regulations from GeoJSON into Firestore \`segments\`.
+"""
+import sys, json, argparse
+from datetime import datetime
+
+try:
+    import firebase_admin
+    from firebase_admin import credentials, firestore
+except ImportError:
+    firebase_admin = None
+
+def normalize_rule_type(text, explicit=None):
+    if explicit and explicit.lower() in ('free', 'paid', 'no'):
+        return explicit.lower()
+    t = (text or '').lower()
+    if any(k in t for k in ['no park', 'no stop', 'tow', 'red zone']): return 'no'
+    if any(k in t for k in ['meter', 'pay', 'paid', 'hr', 'hour']): return 'paid'
+    if any(k in t for k in ['free', 'public', 'unrestricted']): return 'free'
+    return 'paid'
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('geojson')
+    parser.add_argument('--service-account', default='serviceAccount.json')
+    parser.add_argument('--dry-run', action='store_true')
+    args = parser.parse_args()
+
+    with open(args.geojson) as f:
+        data = json.load(f)
+
+    segments = []
+    for f in data.get('features', []):
+        geom = f.get('geometry', {})
+        props = f.get('properties', {})
+        coords = geom.get('coordinates', [])
+        lines = [coords] if geom.get('type') == 'LineString' else coords if geom.get('type') == 'MultiLineString' else []
+        rule_type = normalize_rule_type(props.get('text', ''), props.get('type'))
+
+        for line in lines:
+            if len(line) < 2: continue
+            step = max(1, len(line) // 20)
+            sampled = line[::step][:20]
+            pts = [{'lat': float(p[1]), 'lng': float(p[0])} for p in sampled if len(p) >= 2]
+            if len(pts) >= 2:
+                mid = pts[len(pts) // 2]
+                segments.append({
+                    'uid': 'system_city_import',
+                    'type': rule_type,
+                    'text': str(props.get('text', 'Street Parking Regulation'))[:190],
+                    'lat': mid['lat'],
+                    'lng': mid['lng'],
+                    'pts': pts,
+                    'createdAt': firestore.SERVER_TIMESTAMP if firebase_admin else datetime.utcnow().isoformat()
+                })
+
+    print(f"Loaded {len(segments)} valid street segments.")
+    if args.dry_run:
+        print("Dry run complete.")
+        return
+
+    cred = credentials.Certificate(args.service_account)
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+
+    for i in range(0, len(segments), 400):
+        batch = db.batch()
+        for s in segments[i:i + 400]:
+            batch.set(db.collection('segments').document(), s)
+        batch.commit()
+        print(f"Committed {min(i + 400, len(segments))}/{len(segments)} segments.")
+`;
+
 const FILES: Record<string, { path: string; content: string }> = {
   'lib/main.dart': { path: 'parkpulse_flutter/lib/main.dart', content: DART_MAIN },
   'firestore.rules': { path: 'parkpulse_flutter/firestore.rules', content: RULES },
   'functions/index.js': { path: 'parkpulse_flutter/functions/index.js', content: FUNCTIONS_INDEX },
   'sign_ai/decode.py': { path: 'parkpulse_flutter/sign_ai/decode.py', content: DECODE_PY },
   'sign_ai/server.py': { path: 'parkpulse_flutter/sign_ai/server.py', content: SERVER_PY },
+  'tools/import_city_parking.py': { path: 'tools/import_city_parking.py', content: IMPORT_SCRIPT_PY },
   'README.md': { path: 'parkpulse_flutter/README.md', content: README_MD },
 };
 
@@ -1146,6 +1234,7 @@ export const CodeRepositoryModal: React.FC<CodeRepositoryModalProps> = ({
       folder?.file('functions/index.js', FUNCTIONS_INDEX);
       folder?.file('sign_ai/decode.py', DECODE_PY);
       folder?.file('sign_ai/server.py', SERVER_PY);
+      folder?.file('tools/import_city_parking.py', IMPORT_SCRIPT_PY);
       folder?.file('README.md', README_MD);
 
       const content = await zip.generateAsync({ type: 'blob' });

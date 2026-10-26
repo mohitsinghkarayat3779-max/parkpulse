@@ -49,3 +49,15 @@ export interface UserProfile {
   points: number;
   avatarColor: string;
 }
+
+export interface Segment {
+  id: string;
+  uid: string;
+  type: RuleType;
+  text: string;
+  lat: number;
+  lng: number;
+  pts: [number, number][]; // Array of [lat, lng] points along the road
+  createdAt: number;
+}
+

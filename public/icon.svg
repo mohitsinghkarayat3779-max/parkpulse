@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A4296" />
+      <stop offset="100%" stop-color="#05204c" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)" />
+  <circle cx="256" cy="256" r="210" fill="none" stroke="#ffffff" stroke-opacity="0.1" stroke-width="8" />
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#ffffff" stroke-opacity="0.2" stroke-width="6" stroke-dasharray="16 16" />
+  <g filter="url(#shadow)">
+    <!-- Parking 'P' glyph -->
+    <path d="M 180 130 L 290 130 C 350 130 380 160 380 215 C 380 270 350 300 290 300 L 235 300 L 235 382 C 235 394 225 404 213 404 L 202 404 C 190 404 180 394 180 382 Z" fill="#ffffff" />
+    <!-- Inner P bowl -->
+    <path d="M 235 185 L 285 185 C 315 185 330 198 330 215 C 330 232 315 245 285 245 L 235 245 Z" fill="#0A4296" />
+  </g>
+  <!-- Signal radar waves on top right -->
+  <path d="M 360 140 A 50 50 0 0 1 390 180" fill="none" stroke="#38BDF8" stroke-width="12" stroke-linecap="round" />
+  <path d="M 385 115 A 85 85 0 0 1 430 180" fill="none" stroke="#38BDF8" stroke-width="12" stroke-linecap="round" opacity="0.8" />
+</svg>

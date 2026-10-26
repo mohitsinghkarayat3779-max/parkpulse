@@ -66,12 +66,16 @@ export const RevenueModelModal: React.FC<RevenueModelModalProps> = ({
               <TrendingUp className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg font-bold text-white">
                   ParkPulse Startup Revenue &amp; Business Model
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
                   Monetization Blueprint
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 border border-slate-700 text-slate-300 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span>Founder: <strong>Mohit Singh Karayat</strong></span>
                 </span>
               </div>
               <p className="text-xs text-slate-400">
@@ -576,11 +580,14 @@ export const RevenueModelModal: React.FC<RevenueModelModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between text-xs text-slate-400">
-          <span>Based on proven unit economics from SpotHero, Waze, and Parkopedia</span>
+        <div className="px-6 py-4 border-t border-slate-800 bg-slate-950/80 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span>ParkPulse &bull; Founded &amp; Designed by <strong className="text-white">Mohit Singh Karayat</strong></span>
+          </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all shadow-md active:scale-95"
+            className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all shadow-md active:scale-95"
           >
             Done
           </button>

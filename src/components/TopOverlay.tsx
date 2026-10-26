@@ -44,12 +44,17 @@ export const TopOverlay: React.FC<TopOverlayProps> = ({
       {/* 1. Header Cards Row */}
       <div className="flex items-center justify-between pointer-events-auto">
         <div className="flex items-center gap-1.5">
-          <div className="bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-md border border-slate-100 flex items-center gap-2">
-            <div className="w-5 h-5 rounded-full bg-[#0A4296] text-white flex items-center justify-center font-black text-xs">
-              P
+          <div className="bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-md border border-slate-100 flex flex-col justify-center">
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-4 rounded-full bg-[#0A4296] text-white flex items-center justify-center font-black text-[10px]">
+                P
+              </div>
+              <span className="font-extrabold text-[14px] text-[#0A4296] tracking-tight leading-none">
+                ParkPulse
+              </span>
             </div>
-            <span className="font-extrabold text-[15px] text-[#0A4296] tracking-tight">
-              ParkPulse
+            <span className="text-[9px] font-semibold text-slate-500 tracking-tight leading-none mt-1">
+              by Mohit Singh Karayat
             </span>
           </div>
 

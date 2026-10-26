@@ -1,3 +1,9 @@
+/**
+ * ParkPulse: Crowdsourced Street Parking & Sign Reader
+ * Founder & Author: Mohit Singh Karayat
+ * Copyright (c) 2026 Mohit Singh Karayat. All rights reserved.
+ */
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -64,6 +70,43 @@ class ParkApp extends StatelessWidget {
   }
 }
 
+class Seg {
+  final String id, type, text;
+  final List<LatLng> pts;
+
+  Seg({
+    required this.id,
+    required this.type,
+    required this.text,
+    required this.pts,
+  });
+
+  factory Seg.fromDoc(DocumentSnapshot<Map<String, dynamic>> d) {
+    final m = d.data() ?? {};
+    final raw = (m['pts'] as List? ?? []);
+    final pts = raw.map((p) {
+      if (p is Map) {
+        final lat = (p['lat'] as num?)?.toDouble() ?? 0.0;
+        final lng = (p['lng'] as num?)?.toDouble() ?? 0.0;
+        return LatLng(lat, lng);
+      } else if (p is List && p.length >= 2) {
+        return LatLng(
+          (p[0] as num).toDouble(),
+          (p[1] as num).toDouble(),
+        );
+      }
+      return const LatLng(0, 0);
+    }).toList();
+
+    return Seg(
+      id: d.id,
+      type: m['type'] as String? ?? 'paid',
+      text: m['text'] as String? ?? '',
+      pts: pts,
+    );
+  }
+}
+
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
 
@@ -81,6 +124,16 @@ class _MapPageState extends State<MapPage> {
   bool _pickDest = false;
   bool _first = true;
   String? _filter; // null, 'free', 'paid', or 'garage'
+
+  List<Seg> _segs = [];
+  double _zoom = 15.0;
+  Timer? _deb;
+
+  static const Map<String, Color> _col = {
+    'free': Colors.green,
+    'paid': Color(0xFF1E6FD9),
+    'no': Colors.red,
+  };
 
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _spots;
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _rulesS;
@@ -116,7 +169,153 @@ class _MapPageState extends State<MapPage> {
   void dispose() {
     _searchController.dispose();
     _spotsSubscription?.cancel();
+    _deb?.cancel();
     super.dispose();
+  }
+
+  void _moved() {
+    _deb?.cancel();
+    _deb = Timer(const Duration(milliseconds: 500), () async {
+      try {
+        final z = _mapController.camera.zoom;
+        if (mounted) setState(() => _zoom = z);
+        if (z < 15.0) return;
+
+        final b = _mapController.camera.visibleBounds;
+        final qs = await _db
+            .collection('segments')
+            .where('lat', isGreaterThanOrEqualTo: b.south)
+            .where('lat', isLessThanOrEqualTo: b.north)
+            .get();
+
+        final list = qs.docs
+            .map((d) => Seg.fromDoc(d))
+            .where((s) => s.pts.any((p) => p.longitude >= b.west && p.longitude <= b.east))
+            .toList();
+
+        if (mounted) {
+          setState(() => _segs = list);
+        }
+      } catch (e) {
+        debugPrint('Segments query error: $e');
+      }
+    });
+  }
+
+  Future<void> _makeSegment(LatLng tap, String type, String text) async {
+    final q =
+        '[out:json][timeout:10];way(around:25,${tap.latitude},${tap.longitude})[highway~"^(residential|tertiary|secondary|primary|unclassified|living_street|service)\$"];out geom;';
+    final u = Uri.parse(
+        'https://overpass-api.de/api/interpreter?data=${Uri.encodeComponent(q)}');
+
+    List<LatLng> sub = [];
+    try {
+      final r = await http.get(u).timeout(const Duration(seconds: 10));
+      if (r.statusCode == 200) {
+        final data = jsonDecode(r.body);
+        final elements = (data['elements'] as List? ?? []);
+        if (elements.isNotEmpty) {
+          final geom = (elements[0]['geometry'] as List)
+              .map((p) => LatLng(
+                    (p['lat'] as num).toDouble(),
+                    (p['lon'] as num).toDouble(),
+                  ))
+              .toList();
+
+          const d = Distance();
+          int bi = 0;
+          double md = double.infinity;
+          for (int i = 0; i < geom.length; i++) {
+            final m = d.as(LengthUnit.Meter, tap, geom[i]);
+            if (m < md) {
+              md = m;
+              bi = i;
+            }
+          }
+          final start = max(0, bi - 1);
+          final end = min(geom.length, bi + 2);
+          sub = geom.sublist(start, end);
+        }
+      }
+    } catch (_) {}
+
+    if (sub.length < 2) {
+      // Fallback 100m street segment
+      sub = [
+        LatLng(tap.latitude - 0.00045, tap.longitude - 0.0003),
+        tap,
+        LatLng(tap.latitude + 0.00045, tap.longitude + 0.0003),
+      ];
+    }
+
+    if (_uid != null) {
+      await _db.collection('segments').add({
+        'uid': _uid,
+        'type': type,
+        'text': text,
+        'lat': tap.latitude,
+        'lng': tap.longitude,
+        'pts': sub.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      _moved();
+    }
+  }
+
+  void _segSheet(Seg s) {
+    final title = s.type == 'free'
+        ? 'Free Parking'
+        : s.type == 'paid'
+            ? 'Paid Parking'
+            : 'No Parking';
+    final col = _col[s.type] ?? const Color(0xFF1E6FD9);
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(color: col, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              s.text,
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Colored lines show street parking rules. Tap open spot pins to claim available spaces.',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _setupNotifications() async {
@@ -496,14 +695,18 @@ class _MapPageState extends State<MapPage> {
     );
 
     if (saved == true && textController.text.trim().isNotEmpty && _uid != null) {
+      final ruleText = textController.text.trim();
       await _db.collection('rules').add({
         'lat': ll.latitude,
         'lng': ll.longitude,
         'uid': _uid,
         'type': selectedType,
-        'text': textController.text.trim(),
+        'text': ruleText,
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // Snap to road and create street segment
+      _makeSegment(ll, selectedType, ruleText);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -694,6 +897,8 @@ class _MapPageState extends State<MapPage> {
               initialZoom: 15.0,
               onTap: (_, point) => _onMapTapped(point),
               onLongPress: (_, point) => _addRule(point),
+              onPositionChanged: (pos, hasGesture) => _moved(),
+              onMapReady: () => _moved(),
             ),
             children: [
               // 1. Tile layer
@@ -702,10 +907,78 @@ class _MapPageState extends State<MapPage> {
                 userAgentPackageName: 'com.example.parkpulse',
               ),
 
-              // 2. Rule markers (34 by 34 circles)
+              // 2. Colored Street Segments (Polylines)
+              // Thickness: 6, colors: green (free), blue (paid), red (no)
+              if (_zoom >= 15.0 && _filter != 'garage')
+                PolylineLayer(
+                  polylines: _segs
+                      .where((s) => _filter == null || _filter == s.type)
+                      .map(
+                        (s) => Polyline(
+                          points: s.pts,
+                          strokeWidth: 6.0,
+                          color: _col[s.type] ?? const Color(0xFF1E6FD9),
+                        ),
+                      )
+                      .toList(),
+                ),
+
+              // 3. Segment midpoint labels (at zoom >= 16)
+              if (_zoom >= 16.0 && _filter != 'garage')
+                MarkerLayer(
+                  markers: _segs
+                      .where((s) => _filter == null || _filter == s.type)
+                      .where((s) => s.pts.isNotEmpty)
+                      .map((s) {
+                    final mid = s.pts[s.pts.length ~/ 2];
+                    final label = s.type == 'free'
+                        ? 'FREE'
+                        : s.type == 'paid'
+                            ? 'PAID'
+                            : 'NO PARKING';
+                    final col = _col[s.type] ?? const Color(0xFF1E6FD9);
+                    return Marker(
+                      point: mid,
+                      width: 90,
+                      height: 28,
+                      child: GestureDetector(
+                        onTap: () => _segSheet(s),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: col,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.white, width: 1.5),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black38,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              )
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            label,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+
+              // 4. Rule markers (34 by 34 circles)
+              // Hidden when _zoom >= 16 because colored lines with midpoint labels take precedence
               _buildMarkerLayer(
                 stream: _rulesS,
                 builder: (docs) {
+                  if (_zoom >= 16.0) return [];
                   final markers = <Marker>[];
                   for (final doc in docs) {
                     final data = doc.data();

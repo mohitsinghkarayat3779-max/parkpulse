@@ -7,12 +7,13 @@ import { ReportSpotModal } from './ReportSpotModal';
 import { AddRuleModal } from './AddRuleModal';
 import { SpotDetailsModal } from './SpotDetailsModal';
 import { RuleDetailsModal } from './RuleDetailsModal';
+import { SegmentDetailsModal } from './SegmentDetailsModal';
 import { ScanSignModal } from './ScanSignModal';
 import { GarageBookingModal } from './GarageBookingModal';
 import { PerksRedeemModal } from './PerksRedeemModal';
 import { ProPassModal } from './ProPassModal';
 import { parkingStore } from '../state/parkingStore';
-import { Spot, Garage, Rule, RuleType } from '../types';
+import { Spot, Garage, Rule, Segment, RuleType } from '../types';
 import { Wifi, Battery, Signal, Bell } from 'lucide-react';
 
 interface PhoneScreenProps {
@@ -29,6 +30,7 @@ export const PhoneScreen: React.FC<PhoneScreenProps> = ({
   const [spots, setSpots] = useState<Spot[]>([]);
   const [garages, setGarages] = useState<Garage[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
+  const [segments, setSegments] = useState<Segment[]>([]);
   const [userPoints, setUserPoints] = useState<number>(0);
   const [filter, setFilter] = useState<string | null>(null);
   const [destination, setDestination] = useState<[number, number] | null>(null);
@@ -46,6 +48,7 @@ export const PhoneScreen: React.FC<PhoneScreenProps> = ({
   const [addRuleCoords, setAddRuleCoords] = useState<[number, number]>([29.03, 77.07]);
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [selectedRule, setSelectedRule] = useState<Rule | null>(null);
+  const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
   const [selectedGarageForBooking, setSelectedGarageForBooking] = useState<Garage | null>(null);
   const [isScanOpen, setIsScanOpen] = useState(false);
   const [isPerksOpen, setIsPerksOpen] = useState(false);
@@ -70,6 +73,7 @@ export const PhoneScreen: React.FC<PhoneScreenProps> = ({
       setSpots(parkingStore.getSpots());
       setGarages(parkingStore.getGarages());
       setRules(parkingStore.getRules());
+      setSegments(parkingStore.getSegments());
       const u = parkingStore.getUser(uid);
       setUserPoints(u.points);
     };
@@ -297,6 +301,7 @@ export const PhoneScreen: React.FC<PhoneScreenProps> = ({
           spots={spots}
           garages={garages}
           rules={rules}
+          segments={segments}
           filter={filter}
           destination={destination}
           pickDest={pickDest}
@@ -305,6 +310,8 @@ export const PhoneScreen: React.FC<PhoneScreenProps> = ({
           onSelectSpot={(s) => setSelectedSpot(s)}
           onSelectRule={(r) => setSelectedRule(r)}
           onSelectGarage={(g) => setSelectedGarageForBooking(g)}
+          onSelectSegment={(seg) => setSelectedSegment(seg)}
+          onZoomChange={(z) => setZoom(z)}
         />
 
         {/* 8.4 Top Overlay with Pro & Perks triggers */}
@@ -375,6 +382,12 @@ export const PhoneScreen: React.FC<PhoneScreenProps> = ({
       <RuleDetailsModal
         rule={selectedRule}
         onClose={() => setSelectedRule(null)}
+      />
+
+      {/* Street Segment Regulation Sheet (_segSheet) */}
+      <SegmentDetailsModal
+        segment={selectedSegment}
+        onClose={() => setSelectedSegment(null)}
       />
 
       <ScanSignModal

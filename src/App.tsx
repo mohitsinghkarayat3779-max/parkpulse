@@ -3,6 +3,7 @@ import { PhoneScreen } from './components/PhoneScreen';
 import { PresenterBar } from './components/PresenterBar';
 import { CodeRepositoryModal } from './components/CodeRepositoryModal';
 import { RevenueModelModal } from './components/RevenueModelModal';
+import { DeployModal } from './components/DeployModal';
 import { parkingStore } from './state/parkingStore';
 import {
   Compass,
@@ -19,14 +20,15 @@ export default function App() {
   const [dualPhoneMode, setDualPhoneMode] = useState<boolean>(true);
   const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false);
+  const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
   const [showDemoGuide, setShowDemoGuide] = useState(true);
   const [currentStep, setCurrentStep] = useState(1);
 
   const DEMO_STEPS = [
     {
       step: 1,
-      title: 'Explore Live Map & Filter Chips',
-      desc: 'Leaflet OpenStreetMap centered at Murthal (29.03, 77.07). Tap the filter chips (Free, Paid, Garages) to see matching pins and $price/hr labels.',
+      title: 'Colored Street Lines & Filter Chips',
+      desc: 'Real-world road snapped colored lines: Green (Free), Blue (Paid), Red (No Parking). At zoom ≥ 16, centered labels appear. Tap any line to view regulations.',
     },
     {
       step: 2,
@@ -60,6 +62,7 @@ export default function App() {
         onToggleDualPhone={() => setDualPhoneMode(!dualPhoneMode)}
         onOpenCode={() => setIsCodeModalOpen(true)}
         onOpenRevenue={() => setIsRevenueModalOpen(true)}
+        onOpenDeploy={() => setIsDeployModalOpen(true)}
         onResetData={() => parkingStore.resetDemoData()}
       />
 
@@ -183,6 +186,12 @@ export default function App() {
       <RevenueModelModal
         isOpen={isRevenueModalOpen}
         onClose={() => setIsRevenueModalOpen(false)}
+      />
+
+      {/* 6. Deploy & Download Hub Modal */}
+      <DeployModal
+        isOpen={isDeployModalOpen}
+        onClose={() => setIsDeployModalOpen(false)}
       />
     </div>
   );
