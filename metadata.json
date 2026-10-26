@@ -1,0 +1,6 @@
+{
+  "name": "ParkPulse - Crowdsourced Street Parking & Sign Reader",
+  "description": "Crowdsourced street parking app with live shared map, AI parking sign reader, destination push alerts, and points rewards.",
+  "requestFramePermissions": ["geolocation", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

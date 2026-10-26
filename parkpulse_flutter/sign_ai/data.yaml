@@ -1,0 +1,10 @@
+path: dataset
+train: images/train
+val: images/val
+
+names:
+  0: no_parking
+  1: time_limit
+  2: paid_meter
+  3: permit_only
+  4: other_sign
